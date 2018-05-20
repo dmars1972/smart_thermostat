@@ -3,6 +3,7 @@
 #include <ESP8266httpUpdate.h>
 #include "types.h"
 
+
 void svDecrypt(byte *password, int len) {
   byte decrypted[64];
   spritz_ctx s_ctx;
@@ -95,4 +96,15 @@ int getExpectedPosition(byte roomNumber) {
 void svSetHostName(char *hostName) {
   WiFi.hostname(hostName);
 }
+
+void openVents(byte r) {
+  Serial.print("Open vents in room ");
+  Serial.println(r, DEC);
+}
+
+void closeVents(byte r) {
+  Serial.print("Close vents in room ");
+  Serial.println(r, DEC);
+}
+
 

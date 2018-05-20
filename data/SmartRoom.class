@@ -1,0 +1,13 @@
+class SmartRoom {
+  private:
+    byte roomNumber;
+    byte floorNumber;
+
+  public:
+    void SmartRoom() {};
+    void SmartRoom(byte f, byte r} { roomNumber = r; floorNumber = f; };
+    byte getRoomNumber() { return roomNumber; };
+    byte getFloorNumber() { return floorNumber; };
+    void setRoomNumber(byte r) { roomNumber = r; };
+    void setFloorNumber(byte f) { floorNumber = f; };
+}
