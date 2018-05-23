@@ -13,11 +13,6 @@
 #define MAX_VENTS_PER_ROOM 10
 #define DAYS_OF_WEEK 7
 
-struct Schedule {
-  int startMinute;
-  unsigned char temperature;
-};
-
 class SmartRoom {
   private:
     char roomName[32];
@@ -27,8 +22,8 @@ class SmartRoom {
     
     unsigned char defaultTemperature = 70;
     unsigned char currentTemperature;
-
-    unsigned char schedulePoints = 0;
+    VentState ventState = SV_CLOSED;
+    unsigned char schedulePoints[2][7] = {{0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0}};
     void printRoom();
   public:
     // Constructors
@@ -44,21 +39,22 @@ class SmartRoom {
     char *getVent(unsigned char);
     unsigned char getNumVents() {return numVents;};
     unsigned char getCurrentTemperature();
-    unsigned char getScheduledTemperature(unsigned char, int);
- 
+    unsigned char getScheduledTemperature(unsigned char, unsigned char, int);
+    VentState isOpen() { return ventState; };
     // setters
     void setRoomNumber(unsigned char);
     void setRoomName(char *);
     void setCurrentTemperature(unsigned char);
     void setDefaultTemperature(unsigned char);
     void setFloorNumber(unsigned char);
+    bool setVents(VentState);
     
     // member functions
     void addVent(char *);
-    bool addSchedulePoint(int, unsigned char, unsigned char);
+    bool addSchedulePoint(unsigned char, int, unsigned char, unsigned char);
     bool load(unsigned char);
     void save();
-    
+
     // member variables
     bool exists = false;
     

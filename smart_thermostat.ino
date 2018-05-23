@@ -1,27 +1,23 @@
 #include <TimeLib.h>
 
 #include <NTPClient.h>
-#include "sv_eeprom.h"
-#include "sv_wifi.h"
 #include <WiFiUdp.h>
 #include "SmartConfig.h"
 #include "SmartRoom.h"
+#include "SmartHVAC.h"
 
 SmartConfig smartConfig;
 SmartRoom sr[MAX_ROOMS];
+SmartHVAC hvac;
+WeatherStruct ws;
 
 const char CURRENT_VERSION[] = "1.0";
 const char DEVICE_TYPE[] = "thermostat";
 
 WiFiServer server(54698);
 WiFiServer regServer(54699);
-//Room rooms[MAX_ROOMS];
 byte numRooms = 0;
-byte currentMode;
-byte currentState;
 byte openRooms[4] = {0, 0, 0, 0};
-byte furnaceState[4] = {OFF, OFF, OFF, OFF};
-byte ACState[4] = {OFF, OFF, OFF, OFF};
 
 byte currentDayOfWeek;
 
@@ -31,9 +27,9 @@ NTPClient timeClient(ntpUDP);
 
 void setup() {
   int x, y;
-
-  smartConfig.setup();
   Serial.begin(115200);
+  
+  smartConfig.setup();
   Serial.print("Device: ");
   Serial.println(DEVICE_TYPE);
   Serial.print("Software version: ");
@@ -45,17 +41,27 @@ void setup() {
   Serial.println(ROOM_EEPROM_START, DEC);
   Serial.print("Vent EEPROM start: ");
   Serial.println(VENT_EEPROM_START, DEC);
-  Serial.print("Schedule EEPROM start: ");
-  Serial.println(SCHEDULE_EEPROM_START, DEC);
+  Serial.print("Heat Schedule EEPROM start: ");
+  Serial.println(HEAT_SCHEDULE_EEPROM_START, DEC);
+  Serial.print("Cool Schedule EEPROM start: ");
+  Serial.println(COOL_SCHEDULE_EEPROM_START, DEC);
 
-  Serial.print("WiFi Status: ");
-  if(smartConfig.getWiFiStatus() == true)
-    Serial.println("connected");
-  else
-    Serial.println("not connected");
-  timeClient.setTimeOffset(-5*3600);
+  Serial.print("Auto Heat Temp: ");
+  Serial.println(smartConfig.getAutoHeatTemperature(), DEC);
+  Serial.print("Auto Cool Temp: ");
+  Serial.println(smartConfig.getAutoCoolTemperature(), DEC);
   
+  Serial.print("Timezone offset: ");
+  Serial.println(smartConfig.getTimezoneOffset(), DEC);
+  
+  //timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
   timeClient.begin();
+  
+  timeClient.forceUpdate();
+
+  smartConfig.queryTimezone(timeClient.getEpochTime());
+  timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
+
   
   Serial.print("Current time: ");
   Serial.println(timeClient.getFormattedTime());
@@ -73,16 +79,19 @@ void setup() {
 
     // For testing
     for(y = 0; y < 7; ++y) {
-      sr[x].addSchedulePoint(0, y, 75);
-      sr[x].addSchedulePoint(12*60, y, 78);
-      sr[x].addSchedulePoint((15*60)+30, y, 68);
-      sr[x].addSchedulePoint(18*60, y, 77);
+      sr[x].addSchedulePoint(HEAT, 0, y, 75);
+      sr[x].addSchedulePoint(HEAT, 12*60, y, 78);
+      sr[x].addSchedulePoint(HEAT, (15*60)+30, y, 68);
+      sr[x].addSchedulePoint(HEAT, 18*60, y, 77);
+    }
+    for(y = 0; y < 7; ++y) {
+      sr[x].addSchedulePoint(COOL, 0, y, 75);
+      sr[x].addSchedulePoint(COOL, 12*60, y, 78);
+      sr[x].addSchedulePoint(COOL, (15*60)+30, y, 68);
+      sr[x].addSchedulePoint(COOL, 18*60, y, 77);
     }
     numRooms++;
   }
-
-  currentMode = COOL;
-  currentState = OFF;
   
   Serial.println("Setup complete.");
 }
@@ -105,6 +114,17 @@ void loop() {
   int openRooms = 0;
   SmartRoom r;
 
+  if(!smartConfig.getTimezoneStatus()) {
+    smartConfig.queryTimezone(timeClient.getEpochTime());
+    timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
+  }
+
+  updateCurrentWeather(smartConfig.getZipcode(), smartConfig.getOpenWeatherMapAPIKey());
+  
+  Serial.println(timeClient.getFormattedTime());
+  Serial.print("Current outside temperature: ");
+  Serial.println(ws.outsideTemperature, DEC);
+  
   client = regServer.available();
 
   if(client) {
@@ -180,7 +200,7 @@ void processRooms() {
     Serial.print("Room Name: ");
     Serial.println(sr[x].getRoomName());
     
-    setTemp = sr[x].getScheduledTemperature(currentDayOfWeek, currentMinute);
+    setTemp = sr[x].getScheduledTemperature(hvac.getHVACMode(), currentDayOfWeek, currentMinute);
 
     Serial.print("Current set temperature is ");
     Serial.println(setTemp, DEC);
@@ -249,28 +269,59 @@ byte getCurrentSetTemperature(byte r, byte d, int m) {
   return setTemp;
 }
 
-void setFurnace(byte f, byte s) {
-  if(s == ON) {
-    Serial.print("Turn on furnace on floor ");
-    Serial.println(f, DEC);
-    furnaceState[f] = ON;
-  } else {
-    Serial.print("Turn off furnace on floor ");
-    Serial.println(f, DEC);
-    furnaceState[f] = OFF;
-  }
-}
+void updateCurrentWeather(char *zipcode, char *apikey)
+{
+  static long lastCheck;
+  WiFiClientSecure client;
+  const char *host = "api.openweathermap.org";
+  char url[128];
+  
+  if(lastCheck == 0 || lastCheck + WEATHER_CHECK_INTERVAL_SECONDS < timeClient.getEpochTime()) {
+    Serial.println("Checking the weather...");
+    
+    sprintf(url, "/data/2.5/weather?zip=%s&units=imperial&APPID=%s", zipcode, apikey);
 
-void setAC(byte f, byte s) {
-  if(s == ON) {
-    Serial.print("Turn on AC on floor ");
-    Serial.println(f, DEC);
-    ACState[f] = ON;
-  } else {
-    Serial.print("Turn off AC on floor ");
-    Serial.println(f, DEC);
-    ACState[f] = OFF;
-  }
-}
+    if(!client.connect(host, 443)) {
+      Serial.println("Failed to connect to api.openweathermap.org");
+      return;
+    }
 
+    client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+             "Host: " + host + "\r\n" +
+             "User-Agent: BuildFailureDetectorESP8266\r\n" +
+             "Connection: close\r\n\r\n");
+
+    while (client.connected()) {
+      String line = client.readStringUntil('\n');
+      if (line == "\r") 
+        break;
+    }
+
+    String line = client.readStringUntil('\r');
+
+    const size_t bufferSize = JSON_ARRAY_SIZE(1) + JSON_OBJECT_SIZE(1) + 2*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(12) + 400;
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+
+    const char* json = "{\"coord\":{\"lon\":-97.18,\"lat\":33.12},\"weather\":[{\"id\":800,\"main\":\"Clear\",\"description\":\"clear sky\",\"icon\":\"01d\"}],\"base\":\"stations\",\"main\":{\"temp\":87.42,\"pressure\":1015,\"humidity\":48,\"temp_min\":86,\"temp_max\":89.6},\"visibility\":11265,\"wind\":{\"speed\":5.41,\"deg\":154.008},\"clouds\":{\"all\":1},\"dt\":1527023700,\"sys\":{\"type\":1,\"id\":2597,\"message\":0.0052,\"country\":\"US\",\"sunrise\":1526988258,\"sunset\":1527038821},\"id\":420037411,\"name\":\"Denton\",\"cod\":200}";
+
+    JsonObject& root = jsonBuffer.parseObject(line);
+    JsonObject& weather0 = root["weather"][0];
+    ws.weather_id = weather0["id"];
+    const char* weather0_main = weather0["main"];
+    strcpy(ws.description, weather0["description"]);
+    strcpy(ws.icon, weather0["icon"]);
+    const char* base = root["base"];
+    JsonObject& main = root["main"];
+    ws.outsideTemperature = main["temp"];
+    ws.pressure = main["pressure"];
+    ws.humidity = main["humidity"]; 
+    ws.wind_speed = root["wind"]["speed"];
+    ws.wind_deg = root["wind"]["deg"];
+
+    lastCheck = timeClient.getEpochTime();
+  }
+  client.stop();
+    
+  return;
+}
 
