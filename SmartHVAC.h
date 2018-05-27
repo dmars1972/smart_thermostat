@@ -2,7 +2,7 @@
 #define _SMART_HVAC
 
 #include "Arduino.h"
-#include "types.h"
+#include <SmartConfig.h>
 
 class SmartHVAC {
   private:
@@ -21,3 +21,4 @@ class SmartHVAC {
 };
 
 #endif
+

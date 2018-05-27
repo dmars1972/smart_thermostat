@@ -1,7 +1,8 @@
 #ifndef SMART_ROOM
 #define SMART_ROOM
+
 #include <string.h>
-#include "types.h"
+#include <SmartConfig.h>
 #include <EEPROM.h>
 
 #if defined(ARDUINO) && ARDUINO >= 100
@@ -61,4 +62,5 @@ class SmartRoom {
 };
 
 #endif
+
 

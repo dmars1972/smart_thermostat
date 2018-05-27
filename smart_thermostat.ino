@@ -1,35 +1,50 @@
-#include <TimeLib.h>
-
+#include <SmartConfig.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include "SmartConfig.h"
+#include <TimeLib.h>
+
 #include "SmartRoom.h"
 #include "SmartHVAC.h"
+#include "SmartWeather.h"
+#include "SmartDisplay.h"
 
 SmartConfig smartConfig;
+SmartWeather sw;
+SmartDisplay smartDisplay;
+
+WiFiServer server(54698);
+WiFiServer regServer(54699);
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP);
+
 SmartRoom sr[MAX_ROOMS];
 SmartHVAC hvac;
-WeatherStruct ws;
+
 
 const char CURRENT_VERSION[] = "1.0";
 const char DEVICE_TYPE[] = "thermostat";
 
-WiFiServer server(54698);
-WiFiServer regServer(54699);
 byte numRooms = 0;
 byte openRooms[4] = {0, 0, 0, 0};
 
 byte currentDayOfWeek;
 
-WiFiUDP ntpUDP;
-
-NTPClient timeClient(ntpUDP);
+char outsideTemp[7];
 
 void setup() {
   int x, y;
   Serial.begin(115200);
   
   smartConfig.setup();
+
+  smartDisplay.begin();
+
+  smartDisplay.setStatus("Starting up...");
+  sw.setZipcode(smartConfig.getZipcode());
+  sw.setOpenWeatherMapAPIKey(smartConfig.getOpenWeatherMapAPIKey());
+  sw.setUpdateInterval(3600);
+  sw.setUnits(F);
+  
   Serial.print("Device: ");
   Serial.println(DEVICE_TYPE);
   Serial.print("Software version: ");
@@ -61,7 +76,6 @@ void setup() {
 
   smartConfig.queryTimezone(timeClient.getEpochTime());
   timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
-
   
   Serial.print("Current time: ");
   Serial.println(timeClient.getFormattedTime());
@@ -93,7 +107,17 @@ void setup() {
     numRooms++;
   }
   
+  smartDisplay.setWeatherIcon(sw.getIcon());
+
+  sprintf(outsideTemp, "%.0fF", sw.getTemperature());
+
+  Serial.println(outsideTemp);
+  
+  smartDisplay.setOutsideTemp(outsideTemp);
+  
+  smartDisplay.setStatus("Setup complete");
   Serial.println("Setup complete.");
+  delay(1000);
 }
 
 long int getNTPTime() {
@@ -114,16 +138,21 @@ void loop() {
   int openRooms = 0;
   SmartRoom r;
 
+  smartDisplay.clearStatus();
+
   if(!smartConfig.getTimezoneStatus()) {
     smartConfig.queryTimezone(timeClient.getEpochTime());
     timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
   }
-
-  updateCurrentWeather(smartConfig.getZipcode(), smartConfig.getOpenWeatherMapAPIKey());
-  
   Serial.println(timeClient.getFormattedTime());
   Serial.print("Current outside temperature: ");
-  Serial.println(ws.outsideTemperature, DEC);
+  Serial.println(sw.getTemperature(), DEC);
+
+  smartDisplay.setWeatherIcon(sw.getIcon());
+  
+  sprintf(outsideTemp, "%.0fF", sw.getTemperature());
+  
+  smartDisplay.setOutsideTemp(outsideTemp);
   
   client = regServer.available();
 
@@ -268,7 +297,7 @@ byte getCurrentSetTemperature(byte r, byte d, int m) {
 */
   return setTemp;
 }
-
+/*
 void updateCurrentWeather(char *zipcode, char *apikey)
 {
   static long lastCheck;
@@ -324,4 +353,5 @@ void updateCurrentWeather(char *zipcode, char *apikey)
     
   return;
 }
+*/
 
