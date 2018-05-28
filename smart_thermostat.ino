@@ -1,24 +1,23 @@
 #include <SmartConfig.h>
+#include <SmartVentComm.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <TimeLib.h>
 
+#include "Settings.h"
 #include "SmartRoom.h"
 #include "SmartHVAC.h"
 #include "SmartWeather.h"
 #include "SmartDisplay.h"
 
-#include <SPI.h>
-#include <Wire.h>
-
+Settings settings;
 SmartConfig smartConfig;
 SmartWeather sw;
-SmartDisplay smartDisplay;
+SmartDisplay smartDisplay(&settings);
 
-WiFiServer server(54698);
-WiFiServer regServer(54699);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
+
 
 SmartRoom sr[MAX_ROOMS];
 SmartHVAC hvac;
@@ -32,6 +31,7 @@ byte openRooms[4] = {0, 0, 0, 0};
 byte currentDayOfWeek;
 
 char outsideTemp[7];
+unsigned char currentSetTemp;
 
 void setup() {
   int x, y;
@@ -83,8 +83,6 @@ void setup() {
   Serial.println(timeClient.getFormattedTime());
 
   setSyncProvider(getNTPTime);
-  server.begin();
-  regServer.begin();
 
   for(x = 0; x < MAX_ROOMS; x++) {
     if(! sr[x].load(x)) {
@@ -116,11 +114,13 @@ void setup() {
   Serial.println(outsideTemp);
   
   smartDisplay.setOutsideTemp(outsideTemp);
-
+  
   smartDisplay.setStatus("Setup complete");
   Serial.println("Setup complete.");
   delay(1000);
   smartDisplay.clearStatus();
+  settings.setCurrentSetTemp((unsigned char)76);
+  smartDisplay.setSetTemp(settings.getCurrentSetTemp());
 }
 
 long int getNTPTime() {
@@ -140,13 +140,10 @@ void loop() {
   byte floorNumber;
   int openRooms = 0;
   SmartRoom r;
+  char currentSetTempString[4];
 
   smartDisplay.handleTouch();
-  
-  if(!smartConfig.getTimezoneStatus()) {
-    smartConfig.queryTimezone(timeClient.getEpochTime());
-    timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
-  }
+
   if(timeClient.getHours() > 12) {
     sprintf(currentTime, "%d:%02d", timeClient.getHours() - 12, timeClient.getMinutes());
   } else {
@@ -160,63 +157,8 @@ void loop() {
   sprintf(outsideTemp, "%.0f", sw.getTemperature());
   
   smartDisplay.setOutsideTemp(outsideTemp);
-
-  smartDisplay.setSetTemp("76");
-  client = regServer.available();
-
-  if(client) {
-    Serial.println("Registering vent...");
-    delay(50);
-    roomNumber = client.read();
-    delay(50);
-    floorNumber = client.read();
-    memset(tempName, '\0', sizeof(tempName));
-    x = 0;
-    for(;;) {
-      temp = client.read();
-      if (temp == -1) {
-        delay(50);
-        continue;
-      }
-      if (temp == '\r')
-        break;
-      tempName[x] = temp;
-      x++;
-    }
-    if(sr[roomNumber].exists) {
-      sr[roomNumber].addVent(tempName);
-    } else {
-      Serial.print("Room: ");
-      Serial.println(roomNumber, DEC);
-      Serial.print("Floor: ");
-      Serial.println(floorNumber, DEC);
-      sr[roomNumber] = SmartRoom("Unknown", floorNumber, roomNumber);
-      sr[roomNumber].addVent(tempName);
-      sr[roomNumber].save();
-      numRooms++;
-    }
-
-    client.stop();    
-  }
+  smartDisplay.setSetTemp(settings.getCurrentSetTemp());
   
-  client = server.available();
-  
-  if(client) {
-    Serial.println("Got a client!");
-    
-    delay(100);
-    roomNumber = client.read();
-    temp = client.read();
-    if(sr[roomNumber].exists)
-      sr[roomNumber].setCurrentTemperature(temp);
-    else {
-      Serial.print("Got an unknown room: ");
-      Serial.println(roomNumber, DEC);
-    }
-
-    client.stop();
-  }
-
   processRooms();
 
   //delay(10000);
@@ -362,4 +304,3 @@ void updateCurrentWeather(char *zipcode, char *apikey)
   return;
 }
 */
-
