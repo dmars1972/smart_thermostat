@@ -8,6 +8,9 @@
 #include "SmartWeather.h"
 #include "SmartDisplay.h"
 
+#include <SPI.h>
+#include <Wire.h>
+
 SmartConfig smartConfig;
 SmartWeather sw;
 SmartDisplay smartDisplay;
@@ -19,7 +22,6 @@ NTPClient timeClient(ntpUDP);
 
 SmartRoom sr[MAX_ROOMS];
 SmartHVAC hvac;
-
 
 const char CURRENT_VERSION[] = "1.0";
 const char DEVICE_TYPE[] = "thermostat";
@@ -42,7 +44,7 @@ void setup() {
   smartDisplay.setStatus("Starting up...");
   sw.setZipcode(smartConfig.getZipcode());
   sw.setOpenWeatherMapAPIKey(smartConfig.getOpenWeatherMapAPIKey());
-  sw.setUpdateInterval(3600);
+  sw.setUpdateInterval(300);
   sw.setUnits(F);
   
   Serial.print("Device: ");
@@ -109,15 +111,16 @@ void setup() {
   
   smartDisplay.setWeatherIcon(sw.getIcon());
 
-  sprintf(outsideTemp, "%.0fF", sw.getTemperature());
+  sprintf(outsideTemp, "%.0f", sw.getTemperature());
 
   Serial.println(outsideTemp);
   
   smartDisplay.setOutsideTemp(outsideTemp);
-  
+
   smartDisplay.setStatus("Setup complete");
   Serial.println("Setup complete.");
   delay(1000);
+  smartDisplay.clearStatus();
 }
 
 long int getNTPTime() {
@@ -127,7 +130,7 @@ long int getNTPTime() {
 
 void loop() {
   WiFiClient client;
-  
+  char currentTime[6];
   int ventCount = 0;
   byte roomNumber = 0;
   byte temp = 0;
@@ -138,22 +141,27 @@ void loop() {
   int openRooms = 0;
   SmartRoom r;
 
-  smartDisplay.clearStatus();
-
+  smartDisplay.handleTouch();
+  
   if(!smartConfig.getTimezoneStatus()) {
     smartConfig.queryTimezone(timeClient.getEpochTime());
     timeClient.setTimeOffset(smartConfig.getTimezoneOffset());
   }
-  Serial.println(timeClient.getFormattedTime());
-  Serial.print("Current outside temperature: ");
-  Serial.println(sw.getTemperature(), DEC);
+  if(timeClient.getHours() > 12) {
+    sprintf(currentTime, "%d:%02d", timeClient.getHours() - 12, timeClient.getMinutes());
+  } else {
+    sprintf(currentTime, "%d:%02d", timeClient.getHours(), timeClient.getMinutes());
+  }
 
+  smartDisplay.setTime(currentTime);
+  
   smartDisplay.setWeatherIcon(sw.getIcon());
   
-  sprintf(outsideTemp, "%.0fF", sw.getTemperature());
+  sprintf(outsideTemp, "%.0f", sw.getTemperature());
   
   smartDisplay.setOutsideTemp(outsideTemp);
-  
+
+  smartDisplay.setSetTemp("76");
   client = regServer.available();
 
   if(client) {
@@ -211,7 +219,7 @@ void loop() {
 
   processRooms();
 
-  delay(10000);
+  //delay(10000);
 
 }
 
@@ -281,7 +289,7 @@ void processRooms() {
     */
   }
 
-  delay(1000);
+  //delay(1000);
 }
 
 byte getCurrentSetTemperature(byte r, byte d, int m) {
