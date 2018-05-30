@@ -9,11 +9,13 @@
 #include "SmartHVAC.h"
 #include "SmartWeather.h"
 #include "SmartDisplay.h"
+#include "defs.h"
 
 Settings settings;
 SmartConfig smartConfig;
 SmartWeather sw;
 SmartDisplay smartDisplay(&settings);
+SmartVentComm svc(25836, 25837);
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
@@ -37,7 +39,7 @@ void setup() {
   int x, y;
   Serial.begin(115200);
   
-  smartConfig.setup();
+  smartConfig.setup("thermostat");
 
   smartDisplay.begin();
 
@@ -131,6 +133,7 @@ long int getNTPTime() {
 void loop() {
   WiFiClient client;
   char currentTime[6];
+  /*
   int ventCount = 0;
   byte roomNumber = 0;
   byte temp = 0;
@@ -139,8 +142,12 @@ void loop() {
   int ventNumber;
   byte floorNumber;
   int openRooms = 0;
+  */
+  unsigned char id;
+  unsigned char reportedTemp;
   SmartRoom r;
   char currentSetTempString[4];
+  RegisterStruct reg;
 
   smartDisplay.handleTouch();
 
@@ -160,7 +167,16 @@ void loop() {
   smartDisplay.setSetTemp(settings.getCurrentSetTemp());
   
   processRooms();
+  
+  if(svc.getRegistration(&reg)) {
+    Serial.print("Registered host ");
+    Serial.println(reg.host);
+  }
 
+  while(svc.receiveTemperature(&id, &reportedTemp)) {
+    // do something
+    delay(100);
+  }
   //delay(10000);
 
 }
