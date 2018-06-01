@@ -55,6 +55,7 @@ class SmartRoom {
     bool addSchedulePoint(unsigned char, int, unsigned char, unsigned char);
     bool load(unsigned char);
     void save();
+    bool setRoomTemp(const char *, unsigned char);
 
     // member variables
     bool exists = false;

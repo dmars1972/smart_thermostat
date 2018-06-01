@@ -8,6 +8,9 @@ TextRect::TextRect()
   w = 0;
 
   alignment = LEFT;
+  h_alignment = H_TOP;
+
+  hasBorder = false;
   return;
 }
 
@@ -20,6 +23,8 @@ TextRect::TextRect(uint16_t xpos, uint16_t ypos, uint16_t height, uint16_t width
   memset(text, '\0', sizeof(text));
 
   alignment = LEFT;
+  h_alignment = H_TOP;
+  hasBorder = false;
   return;
 }
 
@@ -30,7 +35,7 @@ void TextRect::clear(Adafruit_ILI9341 *tft)
   return;
 }
 
-bool TextRect::setText(Adafruit_ILI9341 *tft, char *t)
+bool TextRect::setText(Adafruit_ILI9341 *tft, const char *t)
 {
   if(!strcmp(t, text))
     return true;
@@ -44,11 +49,12 @@ bool TextRect::setText(Adafruit_ILI9341 *tft, char *t)
 
 void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, uint16_t fillColor, uint16_t textColor)
 {
-  uint16_t x1;
+  uint16_t x1, y1;
 
   strcpy(text, t);
 
   tft->setTextWrap(false);
+
   switch(fontSize) {
     case 12:
         tft->setFont(&FreeSans12pt7b);
@@ -64,13 +70,39 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
         break;
   }
 
+  //tft->getTextBounds(text, x, y, &tb_x, &tb_y, &tb_w, &tb_h);
+  tft->getTextBounds(text, x, y+h, &tb_x, &tb_y, &tb_w, &tb_h);
+
+  switch(alignment) {
+    case LEFT:
+      x1 = tb_x;
+      break;
+    case CENTER:
+      x1 = tb_x + (w/2) - (tb_w / 2);
+      break;
+    case RIGHT:
+      x1 = tb_x + w - tb_w - 10;
+      break;
+  }
+
+  switch(h_alignment) {
+    case H_TOP:
+      y1 = y+(tb_h-2);
+      break;
+    case H_CENTER:
+      y1 = tb_y + ((h/2)-(tb_h-1));
+      break;
+    case H_BOTTOM:
+      y1 = y+h-tb_h-2;
+      break;
+  } 
+
   tft->setTextColor(textColor);
-  tft->getTextBounds(text, x, y, &tb_x, &tb_y, &tb_w, &tb_h);
+
   tft->fillRoundRect(x, y, w, h, 7, fillColor);
   tft->drawRoundRect(x, y, w, h, 7, borderColor);
 
-  x1 = x + (w/2) - (tb_w / 2) -1;
-  tft->setCursor(x1, y+(h/2)+(tb_h/2));
+  tft->setCursor(x1, y1);
   tft->print(text);
 
   return;
@@ -78,10 +110,15 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
 
 void TextRect::refresh(Adafruit_ILI9341 *tft)
 {
-  uint16_t x1;
+  uint16_t x1, y1;
 
   tft->setTextWrap(false);
-  tft->fillRect(x, y-h, w, h*2, backgroundColor);
+  tft->fillRect(x, y, w, h, backgroundColor);
+  if(hasBorder) {
+    tft->drawRoundRect(x, y, w, h, borderRadius, borderColor);
+  }
+
+  tft->setTextColor(textColor);
 
   switch(fontSize) {
     case 12: tft->setFont(&FreeSans12pt7b);
@@ -94,21 +131,41 @@ void TextRect::refresh(Adafruit_ILI9341 *tft)
              break;
   }
 
-  tft->setTextColor(textColor);
-  tft->getTextBounds(text, x, y, &tb_x, &tb_y, &tb_w, &tb_h);
+  tft->getTextBounds(text, x, y+h, &tb_x, &tb_y, &tb_w, &tb_h);
 
   switch(alignment) {
     case LEFT:
-      x1 = x;
+      x1 = tb_x;
       break;
     case CENTER:
-      x1 = x + (w/2) - (tb_w / 2);
+      x1 = tb_x + (w/2) - (tb_w / 2);
       break;
     case RIGHT:
-      x1 = x + w - tb_w - 10;
+      x1 = tb_x + w - tb_w - 10;
       break;
   }
 
-  tft->setCursor(x1, y+(h/2));
+  switch(h_alignment) {
+    case H_TOP:
+      y1 = y+(tb_h-2);
+      break;
+    case H_CENTER:
+      y1 = tb_y + ((h/2)-(tb_h-1));
+      break;
+    case H_BOTTOM:
+      y1 = y+h-tb_h-2;
+      break;
+  } 
+
+  tft->setCursor(x1, y1);
   tft->print(text);
+}
+
+void TextRect::setBorder(uint16_t bc, char br)
+{
+  hasBorder = true;
+  borderColor = bc;
+  borderRadius = br;
+
+  return;
 }

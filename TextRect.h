@@ -13,12 +13,17 @@ class TextRect : public Rect
   private:
     uint16_t backgroundColor;
     uint16_t textColor;
+    uint16_t borderColor;
+    char borderRadius;
     int16_t tb_x, tb_y;
     uint16_t tb_w, tb_h;
 
     char text[320];
     unsigned char fontSize;
     TextAlignment alignment;
+    HAlignment h_alignment;
+
+    bool hasBorder;
   public:
     TextRect();
     TextRect(uint16_t, uint16_t, uint16_t, uint16_t);
@@ -27,7 +32,9 @@ class TextRect : public Rect
     void setBackgroundColor(uint16_t c) { backgroundColor = c; };
     void setTextColor(uint16_t c) { textColor = c; };
     void setAlignment(TextAlignment a) { alignment = a; return; };
-    bool setText(Adafruit_ILI9341 *, char *);
+    void setHorizontalAlignment(HAlignment a) { h_alignment = a; return; };
+    void setBorder(uint16_t, char);
+    bool setText(Adafruit_ILI9341 *, const char *);
     void setFontSize(unsigned char fs) {fontSize =fs; return; };
     void setButton(Adafruit_ILI9341 *, char *, uint16_t, uint16_t, uint16_t);
     void clear(Adafruit_ILI9341 *);

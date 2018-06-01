@@ -16,13 +16,15 @@ SmartDisplay::SmartDisplay(Settings *settings)
 
   weatherIcon = ImageRect(10, 10, 50, 50);
 
-  statusText = TextRect(0, 240-24, 24, 320);
+  statusText = TextRect(0, 210, 30, 320);
 
-  outsideTempText = TextRect(10, 85, 18, 18*3);
+  outsideTempText = TextRect(6, 80, 25, 54);
 
-  timeText = TextRect(70, 40, 24, 180);
+  timeText = TextRect(70, 20, 37, 180);
 
-  setTempText = TextRect(300 - (26*3), 240-34, 24, 26*3);
+  setTempText = TextRect(310 - (26*3), 195, 34, 26*3);
+
+  settingsIcon = ImageRect(260, 10, 50, 50);
   
   return;
 }
@@ -53,12 +55,12 @@ bool SmartDisplay::begin()
   statusText.setTextColor(ILI9341_CYAN);
   statusText.setBackgroundColor(backgroundColor);
   statusText.setFontSize((unsigned char)12);
-  statusText.setText(&tft, "it worked!");
 
   outsideTempText.setTextColor(ILI9341_CYAN);
   outsideTempText.setAlignment(CENTER);
   outsideTempText.setBackgroundColor(backgroundColor);
   outsideTempText.setFontSize((unsigned char)18);
+  outsideTempText.setAlignment(CENTER);
 
   timeText.setTextColor(ILI9341_CYAN);
   timeText.setBackgroundColor(backgroundColor);
@@ -72,6 +74,11 @@ bool SmartDisplay::begin()
 
   weatherIcon.setBackgroundColor(backgroundColor);
 
+  settingsIcon.setBackgroundColor(backgroundColor);
+
+  settingsIcon.setImage(&tft, "settings");
+
+  
   return true;
 }
 
@@ -286,4 +293,41 @@ void SmartDisplay::refreshScreen()
   timeText.refresh(&tft);
 
   setTempText.refresh(&tft);
+}
+
+void SmartDisplay::addNewVent(const char *vent)
+{
+  TextRect messageBox(25, 25, 190, 270);
+  TextRect titleBox(30, 30, 40, 260);
+  TextRect ventNameBox(35, 80, 40, 250);
+  TextRect assignRoom(60, 160, 40, 200);
+
+  messageBox.setBackgroundColor(backgroundColor);
+  messageBox.setBorder(ILI9341_WHITE, 5); 
+  messageBox.refresh(&tft);
+
+  titleBox.setBackgroundColor(backgroundColor);
+  titleBox.setAlignment(CENTER);
+  titleBox.setHorizontalAlignment(H_CENTER);
+  titleBox.setFontSize((unsigned char)12);
+  titleBox.setTextColor(ILI9341_CYAN);
+  titleBox.setText(&tft, "New Vent!");
+
+  ventNameBox.setBackgroundColor(backgroundColor);
+  ventNameBox.setAlignment(CENTER);
+  ventNameBox.setHorizontalAlignment(H_CENTER);
+  ventNameBox.setFontSize((unsigned char)12);
+  ventNameBox.setTextColor(ILI9341_CYAN);
+  ventNameBox.setBorder(ILI9341_WHITE, 5);
+  ventNameBox.setText(&tft, vent);
+
+  assignRoom.setBackgroundColor(backgroundColor);
+  assignRoom.setAlignment(CENTER);
+  assignRoom.setHorizontalAlignment(H_CENTER);
+  assignRoom.setFontSize((unsigned char)12);
+  assignRoom.setButton(&tft, "Assign to Room", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+
+  delay(5000);
+
 }

@@ -320,4 +320,20 @@ bool SmartRoom::setVents(VentState state)
   return true;
 }
 
+bool SmartRoom::setRoomTemp(const char *vent, unsigned char temp)
+{
+  for(int x = 0; x < numVents; ++x) {
+    Serial.print("Does (");
+    Serial.print(getVent(x));
+    Serial.print(") match (");
+    Serial.print(vent);
+    Serial.println(")");
 
+    if(!strcmp(getVent(x), vent)) {
+      currentTemperature = temp;
+      return true;
+    }
+  }
+
+  return false;
+}

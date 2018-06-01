@@ -39,12 +39,14 @@ class SmartDisplay
 
     uint16_t textColor;
     uint16_t backgroundColor;
+
     Sd2Card card;
     
     char imagefile[10];
     ImageRect weatherIcon;
     char currentIcon[10];
 
+    ImageRect settingsIcon;
     TextRect statusText;
     TextRect outsideTempText;
     TextRect timeText;
@@ -67,6 +69,8 @@ class SmartDisplay
     void timeTouched();
     void setTempTouched();
     bool begin();
+
+    void addNewVent(const char *vent);
 
     void refreshScreen();
 };

@@ -133,19 +133,7 @@ long int getNTPTime() {
 void loop() {
   WiFiClient client;
   char currentTime[6];
-  /*
-  int ventCount = 0;
-  byte roomNumber = 0;
-  byte temp = 0;
-  char tempName[VENT_NAME_SIZE];
-  int x, y;
-  int ventNumber;
-  byte floorNumber;
-  int openRooms = 0;
-  */
-  unsigned char id;
-  unsigned char reportedTemp;
-  SmartRoom r;
+  TempStruct tempStruct;
   char currentSetTempString[4];
   RegisterStruct reg;
 
@@ -171,13 +159,30 @@ void loop() {
   if(svc.getRegistration(&reg)) {
     Serial.print("Registered host ");
     Serial.println(reg.host);
+    Serial.print("hasSensor: ");
+    if(reg.hasSensor)
+      Serial.println("true");
+    else
+      Serial.println("false");
+    smartDisplay.addNewVent(reg.host);
   }
 
-  while(svc.receiveTemperature(&id, &reportedTemp)) {
-    // do something
-    delay(100);
-  }
-  //delay(10000);
+  if(svc.receiveTemperature(&tempStruct)) {
+    int x = 0;
+    do {
+      if(sr[x].setRoomTemp(tempStruct.host, tempStruct.temp)) {
+        Serial.println("got a match, temp set");
+        break;
+      }
+      x++;
+    } while(x < numRooms);
+    
+    Serial.println("Received: ");
+    Serial.print("host  ");
+    Serial.println(tempStruct.host);
+    Serial.print("temp  ");
+    Serial.println(tempStruct.temp);
+  } 
 
 }
 

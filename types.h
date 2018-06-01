@@ -7,4 +7,10 @@ enum TextAlignment {
   CENTER
 };
 
+enum HAlignment {
+  H_TOP,
+  H_BOTTOM,
+  H_CENTER
+};
+
 #endif
