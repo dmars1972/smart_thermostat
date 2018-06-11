@@ -7,6 +7,7 @@ SmartRoom::SmartRoom()
 
 SmartRoom::SmartRoom(char *n) 
 {
+  memset(roomName, '\0', sizeof(roomName));
   strcpy(roomName, n);
   exists = true;
   return;
@@ -22,6 +23,7 @@ SmartRoom::SmartRoom(unsigned char f, unsigned char r)
 
 SmartRoom::SmartRoom(char *n, unsigned char f, unsigned char r)
 {
+  memset(roomName, '\0', sizeof(roomName));
   strcpy(roomName, n);
   roomNumber = r;
   floorNumber = f;
@@ -31,6 +33,8 @@ SmartRoom::SmartRoom(char *n, unsigned char f, unsigned char r)
 
 void SmartRoom::setRoomName(char *n) 
 {
+  memset(roomName, '\0', sizeof(roomName));
+
   strcpy(roomName, n);
 
   return;
@@ -113,6 +117,11 @@ char *SmartRoom::getVent(unsigned char n)
   EEPROM.end();
 
   return (char *)sv;
+}
+
+bool SmartRoom::reload()
+{
+  return load(roomNumber);
 }
 
 bool SmartRoom::load(unsigned char r)
@@ -323,12 +332,6 @@ bool SmartRoom::setVents(VentState state)
 bool SmartRoom::setRoomTemp(const char *vent, unsigned char temp)
 {
   for(int x = 0; x < numVents; ++x) {
-    Serial.print("Does (");
-    Serial.print(getVent(x));
-    Serial.print(") match (");
-    Serial.print(vent);
-    Serial.println(")");
-
     if(!strcmp(getVent(x), vent)) {
       currentTemperature = temp;
       return true;

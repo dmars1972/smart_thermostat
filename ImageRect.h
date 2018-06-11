@@ -18,7 +18,6 @@ class ImageRect : public Rect, Bitmap
     uint16_t backgroundColor;
 
   public:
-    ImageRect();
     ImageRect(uint16_t, uint16_t, uint16_t, uint16_t);
     ImageRect(uint16_t, uint16_t, uint16_t, uint16_t, char *);
 

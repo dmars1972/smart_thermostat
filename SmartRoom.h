@@ -54,6 +54,7 @@ class SmartRoom {
     void addVent(char *);
     bool addSchedulePoint(unsigned char, int, unsigned char, unsigned char);
     bool load(unsigned char);
+    bool reload();
     void save();
     bool setRoomTemp(const char *, unsigned char);
 

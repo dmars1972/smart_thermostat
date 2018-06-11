@@ -1,31 +1,29 @@
 #include "TextRect.h"
 
-TextRect::TextRect() 
-{
-  x = 0;
-  y = 0;
-  h = 0;
-  w = 0;
-
-  alignment = LEFT;
-  h_alignment = H_TOP;
-
-  hasBorder = false;
-  return;
-}
-
 TextRect::TextRect(uint16_t xpos, uint16_t ypos, uint16_t height, uint16_t width)
 {
   x = xpos;
   y = ypos;
   h = height;
   w = width;
-  memset(text, '\0', sizeof(text));
+
+  //memset(text, '\0', sizeof(text));
+
+  text = (char *) malloc (1);
+  text[0] = '\0';
 
   alignment = LEFT;
   h_alignment = H_TOP;
   hasBorder = false;
+  isButton = false;
   return;
+}
+
+TextRect::~TextRect()
+{
+Serial.println("Freeing");
+
+  free(text);
 }
 
 void TextRect::clear(Adafruit_ILI9341 *tft)
@@ -37,9 +35,17 @@ void TextRect::clear(Adafruit_ILI9341 *tft)
 
 bool TextRect::setText(Adafruit_ILI9341 *tft, const char *t)
 {
-  if(!strcmp(t, text))
+  if(!strncmp(t, text, strlen(t)))
     return true;
 
+  text = (char *) realloc (text, strlen(t)+1);
+
+  if(!text) {
+    Serial.println("Realloc failed");
+    return false;
+  }
+
+  memset(text, '\0', strlen(t)+1);
   strcpy(text, t);
 
   refresh(tft);
@@ -51,7 +57,21 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
 {
   uint16_t x1, y1;
 
-  strcpy(text, t);
+  isButton = true;
+
+  buttonBorderColor = borderColor;
+  buttonFillColor = fillColor;
+  buttonTextColor = textColor;
+
+  if(strcmp(t, text)) {
+    text = (char *) realloc(text, strlen(t)+1);
+    memset(text, '\0', strlen(t)+1);
+
+    strcpy(text, t);
+  }
+
+  alignment = CENTER;
+  h_alignment = H_CENTER;
 
   tft->setTextWrap(false);
 
@@ -70,7 +90,6 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
         break;
   }
 
-  //tft->getTextBounds(text, x, y, &tb_x, &tb_y, &tb_w, &tb_h);
   tft->getTextBounds(text, x, y+h, &tb_x, &tb_y, &tb_w, &tb_h);
 
   switch(alignment) {
@@ -78,7 +97,7 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
       x1 = tb_x;
       break;
     case CENTER:
-      x1 = tb_x + (w/2) - (tb_w / 2);
+      x1 = x + (w/2) - (tb_w/2);
       break;
     case RIGHT:
       x1 = tb_x + w - tb_w - 10;
@@ -90,10 +109,10 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
       y1 = y+(tb_h-2);
       break;
     case H_CENTER:
-      y1 = tb_y + ((h/2)-(tb_h-1));
+      y1 = y + (h/2) + (tb_h/2);
       break;
     case H_BOTTOM:
-      y1 = y+h-tb_h-2;
+      y1 = y+h-tb_h-1;
       break;
   } 
 
@@ -105,12 +124,19 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
   tft->setCursor(x1, y1);
   tft->print(text);
 
+Serial.print("Button ");
+Serial.println(text);
   return;
 }
 
 void TextRect::refresh(Adafruit_ILI9341 *tft)
 {
   uint16_t x1, y1;
+
+  if(isButton) {
+    setButton(tft, text, buttonBorderColor, buttonFillColor, buttonTextColor);
+    return;
+  }
 
   tft->setTextWrap(false);
   tft->fillRect(x, y, w, h, backgroundColor);
@@ -150,10 +176,10 @@ void TextRect::refresh(Adafruit_ILI9341 *tft)
       y1 = y+(tb_h-2);
       break;
     case H_CENTER:
-      y1 = tb_y + ((h/2)-(tb_h-1));
+      y1 = y + (h/2) + (tb_h/2);
       break;
     case H_BOTTOM:
-      y1 = y+h-tb_h-2;
+      y1 = y+h-tb_h-1;
       break;
   } 
 

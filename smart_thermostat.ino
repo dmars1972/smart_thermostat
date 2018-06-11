@@ -14,14 +14,15 @@
 Settings settings;
 SmartConfig smartConfig;
 SmartWeather sw;
-SmartDisplay smartDisplay(&settings);
+SmartRoom sr[MAX_ROOMS];
+SmartDisplay smartDisplay(&settings, sr);
 SmartVentComm svc(25836, 25837);
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
 
-SmartRoom sr[MAX_ROOMS];
+
 SmartHVAC hvac;
 
 const char CURRENT_VERSION[] = "1.0";
@@ -43,7 +44,6 @@ void setup() {
 
   smartDisplay.begin();
 
-  smartDisplay.setStatus("Starting up...");
   sw.setZipcode(smartConfig.getZipcode());
   sw.setOpenWeatherMapAPIKey(smartConfig.getOpenWeatherMapAPIKey());
   sw.setUpdateInterval(300);
@@ -87,10 +87,14 @@ void setup() {
   setSyncProvider(getNTPTime);
 
   for(x = 0; x < MAX_ROOMS; x++) {
+    char roomname[32];
     if(! sr[x].load(x)) {
       Serial.println("Load failed");
       break;
     }
+    Serial.println("Loaded room");
+    //sprintf(roomname, "room %d", x);
+    //sr[x].setRoomName(roomname);
     sr[x].exists = true;
 
     // For testing
@@ -108,7 +112,7 @@ void setup() {
     }
     numRooms++;
   }
-  
+
   smartDisplay.setWeatherIcon(sw.getIcon());
 
   sprintf(outsideTemp, "%.0f", sw.getTemperature());
@@ -117,10 +121,6 @@ void setup() {
   
   smartDisplay.setOutsideTemp(outsideTemp);
   
-  smartDisplay.setStatus("Setup complete");
-  Serial.println("Setup complete.");
-  delay(1000);
-  smartDisplay.clearStatus();
   settings.setCurrentSetTemp((unsigned char)76);
   smartDisplay.setSetTemp(settings.getCurrentSetTemp());
 }
@@ -157,26 +157,26 @@ void loop() {
   processRooms();
   
   if(svc.getRegistration(&reg)) {
-    Serial.print("Registered host ");
-    Serial.println(reg.host);
-    Serial.print("hasSensor: ");
-    if(reg.hasSensor)
-      Serial.println("true");
-    else
-      Serial.println("false");
-    smartDisplay.addNewVent(reg.host);
+    
+    smartDisplay.addNotification();
   }
 
   if(svc.receiveTemperature(&tempStruct)) {
     int x = 0;
+    bool found = false;
     do {
       if(sr[x].setRoomTemp(tempStruct.host, tempStruct.temp)) {
         Serial.println("got a match, temp set");
+        found = true;
         break;
       }
       x++;
     } while(x < numRooms);
-    
+
+    if(!found) {
+      smartDisplay.addNotification();
+      smartDisplay.addUnknownVent(tempStruct.host);
+    }
     Serial.println("Received: ");
     Serial.print("host  ");
     Serial.println(tempStruct.host);
@@ -195,19 +195,9 @@ void processRooms() {
   currentDayOfWeek = weekday();
   
   for(x = 0; x < numRooms; x++) {
-    Serial.print("Working on room: ");
-    Serial.println(x);
-    Serial.print("Room Name: ");
-    Serial.println(sr[x].getRoomName());
-    
     setTemp = sr[x].getScheduledTemperature(hvac.getHVACMode(), currentDayOfWeek, currentMinute);
-
-    Serial.print("Current set temperature is ");
-    Serial.println(setTemp, DEC);
     for(x = 0; x < sr[x].getNumVents(); ++x) {
       strcpy(vn, sr[x].getVent(x));
-      Serial.print("  ");
-      Serial.println(vn);
     }
 /*
     if(currentMode == HEAT) {

@@ -20,8 +20,15 @@ Rect::Rect(uint16_t xpos, uint16_t ypos, uint16_t width, uint16_t height)
 
 bool Rect::touched(uint16_t xpos, uint16_t ypos)
 {
-  if(xpos >= x && xpos <= x+w && ypos >= y && ypos <= y+h)
+  if(xpos >= x && xpos <= x+w && ypos >= y && ypos <= y+h) {
+    if(_onTouch) _onTouch();
     return true;
+  }
 
   return false;
+}
+
+void Rect::onTouch(THandler fn)
+{
+  _onTouch = fn;
 }

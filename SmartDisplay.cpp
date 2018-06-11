@@ -1,8 +1,15 @@
 #include "SmartDisplay.h"
 
-SmartDisplay::SmartDisplay(Settings *settings)
+SmartDisplay::SmartDisplay(Settings *settings, SmartRoom r[])
+:weatherIcon(10, 10, 50, 50),
+ outsideTempText(6, 80, 25, 54),
+ timeText (70, 20, 38, 180),
+ setTempLabel(122, 206, 34, 115),
+ setTempText (232, 195, 34, 26*3),
+ settingsIcon (260, 10, 35, 35)
 {
   s = settings;
+  rooms = r;
 
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
@@ -14,32 +21,18 @@ SmartDisplay::SmartDisplay(Settings *settings)
     while(1);
   }
 
-  weatherIcon = ImageRect(10, 10, 50, 50);
+  hasNotification = false;
 
-  statusText = TextRect(0, 210, 30, 320);
-
-  outsideTempText = TextRect(6, 80, 25, 54);
-
-  timeText = TextRect(70, 20, 37, 180);
-
-  setTempText = TextRect(310 - (26*3), 195, 34, 26*3);
-
-  settingsIcon = ImageRect(260, 10, 50, 50);
-  
   return;
 }
 
 bool SmartDisplay::begin()
 {
+  String str;
   if(!spitouch.begin()) {
     Serial.println("STMPE not found.");
     return false;
   }
-
-/*
-  spitouch.writeRegister8(STMPE_GPIO_DIR, _BV(2));
-  spitouch.writeRegister8(STMPE_GPIO_ALT_FUNCT, _BV(2));
-*/
 
   spitouch.begin();
 
@@ -52,10 +45,6 @@ bool SmartDisplay::begin()
 
   tft.setRotation(3);
 
-  statusText.setTextColor(ILI9341_CYAN);
-  statusText.setBackgroundColor(backgroundColor);
-  statusText.setFontSize((unsigned char)12);
-
   outsideTempText.setTextColor(ILI9341_CYAN);
   outsideTempText.setAlignment(CENTER);
   outsideTempText.setBackgroundColor(backgroundColor);
@@ -65,7 +54,15 @@ bool SmartDisplay::begin()
   timeText.setTextColor(ILI9341_CYAN);
   timeText.setBackgroundColor(backgroundColor);
   timeText.setFontSize((unsigned char)24);
+  timeText.setHorizontalAlignment(H_CENTER);
   timeText.setAlignment(CENTER);
+
+  setTempLabel.setTextColor(ILI9341_DARKCYAN);
+
+  setTempLabel.setAlignment(RIGHT);
+  setTempLabel.setBackgroundColor(backgroundColor);
+  setTempLabel.setFontSize((unsigned char)12);
+  setTempLabel.setText(&tft, "Set Temp:");
 
   setTempText.setTextColor(ILI9341_CYAN);
   setTempText.setBackgroundColor(backgroundColor);
@@ -76,8 +73,7 @@ bool SmartDisplay::begin()
 
   settingsIcon.setBackgroundColor(backgroundColor);
 
-  settingsIcon.setImage(&tft, "settings");
-
+  settingsIcon.setImage(&tft, "settings.bmp");
   
   return true;
 }
@@ -127,20 +123,6 @@ void SmartDisplay::setSetTemp(unsigned char t)
   return;
 }
 
-void SmartDisplay::setStatus(char *t)
-{
-  statusText.setText(&tft, t);
-
-  return;
-}
-
-void SmartDisplay::clearStatus()
-{
-  statusText.clear(&tft);
-
-  return;
-}
-
 void SmartDisplay::setTime(char *t)
 {
   timeText.setText(&tft, t);
@@ -162,21 +144,18 @@ void SmartDisplay::handleTouch()
     touchy = map(p.x, TS_MAXX, TS_MINX, 0, tft.height());
 
     // clear the buffer
-    do {
-      spitouch.getPoint();
-    } while(!spitouch.bufferEmpty());
+    clearBuffer();
 
     if(weatherIcon.touched(touchx, touchy))
       weatherIconTouched();
-
-    if(outsideTempText.touched(touchx, touchy))
+    else if(outsideTempText.touched(touchx, touchy))
       weatherIconTouched();
-
-    if(timeText.touched(touchx, touchy))
+    else if(timeText.touched(touchx, touchy))
       timeTouched();
-
-    if(setTempText.touched(touchx, touchy))
+    else if(setTempText.touched(touchx, touchy))
       setTempTouched();
+    else if(settingsIcon.touched(touchx, touchy))
+      settingsTouched();
   }
 
   return;
@@ -204,16 +183,17 @@ void SmartDisplay::setTempTouched()
 
   tft.fillScreen(backgroundColor);
 
-  TextRect currentBox(110, 78, 50, 70);
+  TextRect currentBox(110, 63, 50, 70);
   TextRect downBox(50, 63, 50, 50);
   TextRect upBox(195, 63, 50, 50);
-  TextRect okBox(50, 153, 50, 75);
-  TextRect cancelBox(245-75, 153, 50, 75);
+  TextRect okBox(50, 153, 50, 80);
+  TextRect cancelBox(245-80, 153, 50, 80);
 
   currentBox.setBackgroundColor(backgroundColor);
   currentBox.setFontSize((unsigned char)18);
   currentBox.setTextColor(ILI9341_CYAN);
   currentBox.setAlignment(CENTER);
+  currentBox.setHorizontalAlignment(H_CENTER);
   currentBox.setText(&tft, t);
 
   upBox.setBackgroundColor(backgroundColor);
@@ -240,10 +220,12 @@ void SmartDisplay::setTempTouched()
   cancelBox.setAlignment(CENTER);
   cancelBox.setButton(&tft, "Cancel", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
 
+  cancelBox.onTouch([]() {
+    Serial.println("Hit cancel");
+  });
+
 // empty the buffer
-  do {
-    spitouch.getPoint();
-  } while(!spitouch.bufferEmpty());
+  clearBuffer();
 
   do {
     if (!spitouch.bufferEmpty()) {
@@ -268,11 +250,11 @@ void SmartDisplay::setTempTouched()
         break;
       }
 
-      while(!spitouch.bufferEmpty())
-        spitouch.getPoint();
-    } else 
-      delay(100);
+      delay(200);
+      clearBuffer();
+    }
 
+    yield();
 
   } while(true);
 
@@ -280,6 +262,259 @@ void SmartDisplay::setTempTouched()
     s->setCurrentSetTemp(setTemp);
 
   refreshScreen();
+}
+
+void SmartDisplay::settingsTouched()
+{
+  TextRect roomsButton(10, 10, 40, 300);
+  TextRect backButton(200, 200, 40, 100);
+
+  tft.fillScreen(backgroundColor);
+
+  roomsButton.setBackgroundColor(backgroundColor);
+  roomsButton.setFontSize((unsigned char)12);
+  roomsButton.setTextColor(ILI9341_CYAN);
+  roomsButton.setButton(&tft, "Rooms", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  backButton.setBackgroundColor(backgroundColor);
+  backButton.setFontSize((unsigned char)18);
+  backButton.setButton(&tft, "Back", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  clearBuffer();
+
+  do {
+    if (!spitouch.bufferEmpty()) {
+      TS_Point p;
+      uint16_t touchx, touchy;
+      p = spitouch.getPoint();
+
+      touchx = map(p.y, TS_MAXY, TS_MINY, 0, tft.width()); 
+      touchy = map(p.x, TS_MAXX, TS_MINX, 0, tft.height());
+
+      if(backButton.touched(touchx, touchy))
+        break;
+      else if (roomsButton.touched(touchx, touchy)) {
+        displayRooms();
+        roomsButton.refresh(&tft);
+        backButton.refresh(&tft);
+      }
+
+      clearBuffer();
+    }
+    yield();
+  } while(true);
+
+  delay(250);
+Serial.println("Clearing buffer");
+  clearBuffer();
+Serial.println("Broke");
+  refreshScreen();
+}
+
+void SmartDisplay::displayRooms()
+{
+  int index = 0;
+  bool lr = true;
+  uint8_t row = 10;
+  int rn = 0;
+  TextRect *roomButton[MAX_ROOMS];
+  TextRect addButton(30, 200, 40, 100);
+  TextRect endButton(190, 200, 40, 100);
+
+  tft.fillScreen(backgroundColor);
+
+  addButton.setBackgroundColor(backgroundColor);
+  addButton.setFontSize((unsigned char)18);
+  addButton.setTextColor(ILI9341_CYAN);
+  addButton.setButton(&tft, "New", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  endButton.setBackgroundColor(backgroundColor);
+  endButton.setFontSize((unsigned char)18);
+  endButton.setTextColor(ILI9341_CYAN);
+  endButton.setButton(&tft, "Done", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  for(index = 0; index < MAX_ROOMS; index++) {
+    if(!rooms[index].exists)
+      break;
+
+    rn++;
+    roomButton[index] = new TextRect(lr ? 10 : 170, row, 30, 150);
+    lr = !lr;
+    if(lr)
+      row += 40;
+
+    roomButton[index]->setBackgroundColor(backgroundColor);
+    roomButton[index]->setFontSize((unsigned char)12);
+    roomButton[index]->setTextColor(ILI9341_CYAN);
+    roomButton[index]->setButton(&tft, rooms[index].getRoomName(), ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+  }
+
+  clearBuffer();
+
+  do {
+    if (!spitouch.bufferEmpty()) {
+      TS_Point p;
+      uint16_t touchx, touchy;
+      p = spitouch.getPoint();
+
+      clearBuffer();
+
+      touchx = map(p.y, TS_MAXY, TS_MINY, 0, tft.width()); 
+      touchy = map(p.x, TS_MAXX, TS_MINX, 0, tft.height());
+
+      if(addButton.touched(touchx, touchy)) {
+        String newRoom;
+        tft.setFont(&FreeSans12pt7b);
+        SoftKeyboard kb(&tft, &spitouch, 10, 30, 300, 130, TS_MAXX, TS_MINX, TS_MAXY, TS_MINY, newRoom);
+        Serial.print("Adding ");
+        Serial.print(newRoom);
+        Serial.print(" at ");
+        Serial.println(rn);
+        rooms[rn].setRoomName((char *)newRoom.c_str());
+        rooms[rn].save();
+        roomButton[rn] = new TextRect(lr ? 10 : 170, row, 30, 150);
+        lr = !lr;
+        if(lr)
+          row += 40;
+
+        roomButton[rn]->setBackgroundColor(backgroundColor);
+        roomButton[rn]->setFontSize((unsigned char)12);
+        roomButton[rn]->setTextColor(ILI9341_CYAN);
+        roomButton[rn]->setButton(&tft, rooms[rn].getRoomName(), ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+        rn++;
+        for(int index = 0; index < rn; index++)
+          roomButton[index]->refresh(&tft);
+        addButton.refresh(&tft);
+        endButton.refresh(&tft);
+        
+      } else if (endButton.touched(touchx, touchy))
+        break;
+      else {
+        for(int index = 0; index < rn; index++) {
+          if(roomButton[index]->touched(touchx, touchy)) {
+            char str[64];
+            sprintf(str, "Touched room %s", rooms[index].getRoomName());
+            Serial.println(str);
+            displayRoom(rooms[index]);
+            rooms[index].reload();
+            roomButton[index]->setButton(&tft, rooms[index].getRoomName(), ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+            roomButton[index]->refresh(&tft);
+            addButton.refresh(&tft);
+            endButton.refresh(&tft);
+          }
+        }
+      }
+
+      clearBuffer();
+    }
+    yield();
+  } while(true);
+
+  tft.fillScreen(backgroundColor);
+
+  return;
+}
+
+void SmartDisplay::displayRoom(SmartRoom r)
+{
+  TextRect nameLabel(20, 10, 40, 80);
+  TextRect nameText(160, 10, 40, 160);
+  TextRect currentTempLabel(20, 50, 40, 80);
+  TextRect currentTempText(160, 50, 40, 160);
+  TextRect endButton(190, 200, 40, 100);
+  TextRect addVentButton(20, 200, 40, 100);
+  char currentTempStr[4];
+
+  sprintf(currentTempStr, "%d", r.getCurrentTemperature());
+
+  tft.fillScreen(backgroundColor);
+
+  nameLabel.setBackgroundColor(backgroundColor);
+  nameLabel.setFontSize((unsigned char)12);
+  nameLabel.setTextColor(ILI9341_CYAN);
+  nameLabel.setHorizontalAlignment(H_CENTER);
+  nameLabel.setText(&tft, "Room:");
+
+  nameText.setBackgroundColor(backgroundColor);
+  nameText.setFontSize((unsigned char)12);
+  nameText.setTextColor(ILI9341_CYAN);
+  nameText.setHorizontalAlignment(H_CENTER);
+  nameText.setText(&tft, r.getRoomName());
+
+  currentTempLabel.setBackgroundColor(backgroundColor);
+  currentTempLabel.setFontSize((unsigned char)12);
+  currentTempLabel.setTextColor(ILI9341_CYAN);
+  currentTempLabel.setHorizontalAlignment(H_CENTER);
+  currentTempLabel.setText(&tft, "Temp:");
+
+  currentTempText.setBackgroundColor(backgroundColor);
+  currentTempText.setFontSize((unsigned char)12);
+  currentTempText.setTextColor(ILI9341_CYAN);
+  currentTempText.setHorizontalAlignment(H_CENTER);
+  currentTempText.setText(&tft, currentTempStr);
+
+  endButton.setBackgroundColor(backgroundColor);
+  endButton.setFontSize((unsigned char)18);
+  endButton.setTextColor(ILI9341_CYAN);
+  endButton.setButton(&tft, "Done", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  addVentButton.setBackgroundColor(backgroundColor);
+  addVentButton.setFontSize((unsigned char)12);
+  addVentButton.setTextColor(ILI9341_CYAN);
+  addVentButton.setButton(&tft, "Add Vent", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+
+  clearBuffer();
+
+  do {
+    if (!spitouch.bufferEmpty()) {
+      TS_Point p;
+      uint16_t touchx, touchy;
+      p = spitouch.getPoint();
+
+      touchx = map(p.y, TS_MAXY, TS_MINY, 0, tft.width()); 
+      touchy = map(p.x, TS_MAXX, TS_MINX, 0, tft.height());
+
+      if(nameText.touched(touchx, touchy)) {
+        String roomN(r.getRoomName());
+        tft.setFont(&FreeSans12pt7b);
+        SoftKeyboard kb(&tft, &spitouch, 10, 30, 300, 130, TS_MAXX, TS_MINX, TS_MAXY, TS_MINY, roomN);
+        if(roomN.length() != 0) {
+          r.setRoomName((char *)roomN.c_str());
+          r.save();
+          r.reload();
+        }
+
+        nameText.setText(&tft, r.getRoomName());
+        nameText.refresh(&tft);
+        nameLabel.refresh(&tft);
+        endButton.refresh(&tft);
+        addVentButton.refresh(&tft);
+      } else if (endButton.touched(touchx, touchy)) {
+        break;
+      } else if (addVentButton.touched(touchx, touchy)) {
+        addUnknownToRoom(r);
+        r.reload();
+
+        nameLabel.refresh(&tft);
+        nameText.refresh(&tft);
+        endButton.refresh(&tft);
+      }
+      delay(200);
+      clearBuffer();
+    }
+
+    yield();
+  } while(true);
+
+  clearBuffer();
+  tft.fillScreen(backgroundColor);
+}
+
+void SmartDisplay::clearBuffer()
+{
+  while(!spitouch.bufferEmpty()) {
+    spitouch.getPoint();
+  }
 }
 
 void SmartDisplay::refreshScreen()
@@ -293,41 +528,80 @@ void SmartDisplay::refreshScreen()
   timeText.refresh(&tft);
 
   setTempText.refresh(&tft);
+
+  setTempLabel.refresh(&tft);
+
+  settingsIcon.refresh(&tft);
 }
 
-void SmartDisplay::addNewVent(const char *vent)
+void SmartDisplay::addNotification()
 {
-  TextRect messageBox(25, 25, 190, 270);
-  TextRect titleBox(30, 30, 40, 260);
-  TextRect ventNameBox(35, 80, 40, 250);
-  TextRect assignRoom(60, 160, 40, 200);
+  hasNotification = true;
+  settingsIcon.setImage(&tft, "notify.bmp");
+}
 
-  messageBox.setBackgroundColor(backgroundColor);
-  messageBox.setBorder(ILI9341_WHITE, 5); 
-  messageBox.refresh(&tft);
+void SmartDisplay::addUnknownVent(char *uv)
+{
+  for(std::vector<String>::iterator it = unknownVents.begin() ; it != unknownVents.end(); ++it) {
+    if((*it).compareTo(uv) == 0)
+      return;
+  }
 
-  titleBox.setBackgroundColor(backgroundColor);
-  titleBox.setAlignment(CENTER);
-  titleBox.setHorizontalAlignment(H_CENTER);
-  titleBox.setFontSize((unsigned char)12);
-  titleBox.setTextColor(ILI9341_CYAN);
-  titleBox.setText(&tft, "New Vent!");
+  unknownVents.push_back(uv);
+}
 
-  ventNameBox.setBackgroundColor(backgroundColor);
-  ventNameBox.setAlignment(CENTER);
-  ventNameBox.setHorizontalAlignment(H_CENTER);
-  ventNameBox.setFontSize((unsigned char)12);
-  ventNameBox.setTextColor(ILI9341_CYAN);
-  ventNameBox.setBorder(ILI9341_WHITE, 5);
-  ventNameBox.setText(&tft, vent);
+void SmartDisplay::addUnknownToRoom(SmartRoom r)
+{
+  int index = 0;
+  bool lr = true;
+  uint8_t row = 10;
+  int rn = 0;
+  std::vector<TextRect *> ventButtons;
+  TextRect *thisVentButton;
+  TextRect endButton(190, 200, 40, 100);
 
-  assignRoom.setBackgroundColor(backgroundColor);
-  assignRoom.setAlignment(CENTER);
-  assignRoom.setHorizontalAlignment(H_CENTER);
-  assignRoom.setFontSize((unsigned char)12);
-  assignRoom.setButton(&tft, "Assign to Room", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+  tft.fillScreen(backgroundColor);
 
+  endButton.setBackgroundColor(backgroundColor);
+  endButton.setFontSize((unsigned char)18);
+  endButton.setTextColor(ILI9341_CYAN);
+  endButton.setButton(&tft, "Done", ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
 
-  delay(5000);
+  for(std::vector<String>::iterator it = unknownVents.begin(); it != unknownVents.end(); ++it) {
+    thisVentButton = new TextRect(lr ? 10 : 170, row, 30, 150);
+    thisVentButton->setButton(&tft, (char *)(*it).c_str(), ILI9341_CYAN, ILI9341_DARKCYAN, ILI9341_BLACK);
+    ventButtons.push_back(thisVentButton);
+    lr = !lr;
+    if(lr)
+      row += 40;
+  }
 
+  clearBuffer();
+
+  do {
+    if (!spitouch.bufferEmpty()) {
+      TS_Point p;
+      uint16_t touchx, touchy;
+      p = spitouch.getPoint();
+
+      touchx = map(p.y, TS_MAXY, TS_MINY, 0, tft.width()); 
+      touchy = map(p.x, TS_MAXX, TS_MINX, 0, tft.height());
+
+      for(std::vector<TextRect *>::iterator it = ventButtons.begin(); it != ventButtons.end(); ++it) {
+        if((*it)->touched(touchx, touchy)) {
+          r.addVent((*it)->getText());
+          r.save();
+        }
+      }
+      if(endButton.touched(touchx, touchy))
+        break;
+
+      delay(200);
+      clearBuffer();
+    }
+    yield();
+  } while(true);
+
+  clearBuffer();
+  tft.fillScreen(backgroundColor);
 }

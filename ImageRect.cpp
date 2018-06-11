@@ -1,18 +1,5 @@
 #include "ImageRect.h"
 
-ImageRect::ImageRect()
-{
-  x = 0;
-  y = 0;
-  w = 0;
-  h = 0;
-
-  bufferSize = (w * 3 + 3) & ~3;
-  bitmap = Bitmap(w, h);
-
-  return;
-}
-
 ImageRect::ImageRect(uint16_t xpos, uint16_t ypos, uint16_t width, uint16_t height)
 {
   x = xpos;
