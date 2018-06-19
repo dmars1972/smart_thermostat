@@ -9,7 +9,15 @@ TextRect::TextRect(uint16_t xpos, uint16_t ypos, uint16_t height, uint16_t width
 
   //memset(text, '\0', sizeof(text));
 
+  Serial.println("Mallocing 1 byte for text");
+
   text = (char *) malloc (1);
+
+  if (text == NULL) {
+    Serial.println("failed to malloc 1 byte");
+    while(1) {}
+  }
+
   text[0] = '\0';
 
   alignment = LEFT;
@@ -21,7 +29,9 @@ TextRect::TextRect(uint16_t xpos, uint16_t ypos, uint16_t height, uint16_t width
 
 TextRect::~TextRect()
 {
-Serial.println("Freeing");
+  Serial.print("Freeing ");
+  Serial.print(strlen(text));
+  Serial.println(" bytes.");
 
   free(text);
 }
@@ -38,11 +48,19 @@ bool TextRect::setText(Adafruit_ILI9341 *tft, const char *t)
   if(!strncmp(t, text, strlen(t)))
     return true;
 
-  text = (char *) realloc (text, strlen(t)+1);
+  if(strlen(text) != strlen(t)) {
+    Serial.print("Reallocating text to ");
+    Serial.print(strlen(t)+1);
+    Serial.println(" bytes");
 
-  if(!text) {
-    Serial.println("Realloc failed");
-    return false;
+    free(text);
+    text = (char *) malloc (strlen(t)+1);
+
+    if(text == NULL) {
+      Serial.println("Realloc failed");
+      while(1) {}
+      return false;
+    }
   }
 
   memset(text, '\0', strlen(t)+1);
@@ -64,7 +82,21 @@ void TextRect::setButton(Adafruit_ILI9341 *tft, char *t, uint16_t borderColor, u
   buttonTextColor = textColor;
 
   if(strcmp(t, text)) {
-    text = (char *) realloc(text, strlen(t)+1);
+    Serial.print("Reallocating text to ");
+    Serial.print(strlen(t)+1);
+    Serial.println(" bytes");
+
+    free(text);
+
+    text = (char *) malloc (strlen(t)+1);
+
+    if(text == NULL) {
+      Serial.print("Realloc failed for ");
+      Serial.print(strlen(t)+1);
+      Serial.println(" bytes.");
+      while(1) {}
+    }
+
     memset(text, '\0', strlen(t)+1);
 
     strcpy(text, t);

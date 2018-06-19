@@ -33,7 +33,14 @@ void ImageRect::refresh(Adafruit_ILI9341 *tft)
   int y1;
   File bmpFile;
 
+  Serial.print("got a refresh for (");
+  Serial.print(bmpFilename);
+  Serial.println(")");
+Serial.println("WTF??");
+
   bmpFile = SD.open(bmpFilename, FILE_READ);
+
+Serial.println("here");
 
   if(!bmpFile) {
     Serial.print("Couldn't find ");
@@ -41,21 +48,33 @@ void ImageRect::refresh(Adafruit_ILI9341 *tft)
     return;
   }
 
+  Serial.println("SD.open done");
+  Serial.flush();
+
   if(!bitmap.readHeader(bmpFile)) {
     Serial.println("Header not ok");
     bmpFile.close();
     return;
   }
 
+  Serial.println("readHeader done");
+  Serial.flush();
+
   if(bufferSize == 0) {
     Serial.println("Didn't set a buffer size");
     return;
   }
 
+  Serial.print("Mallocing ");
+  Serial.print(bitmap.getRowsize());
+  Serial.println(" bytes for pixelBuffer");
+  Serial.flush();
+
   pixelBuffer = (uint8_t *) malloc (bitmap.getRowsize());
 
-  if(!pixelBuffer) {
+  if(pixelBuffer == NULL) {
     Serial.println("malloc failed");
+    while(1) {}
     return;
   } 
 

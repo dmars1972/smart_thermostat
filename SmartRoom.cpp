@@ -179,6 +179,7 @@ void SmartRoom::setDefaultTemperature(unsigned char t)
 
   return;
 }
+
 unsigned char SmartRoom::getCurrentTemperature()
 {
   return currentTemperature;
@@ -226,6 +227,9 @@ unsigned char SmartRoom::getScheduledTemperature(unsigned char hc, unsigned char
   }
   
   EEPROM.begin(4096);
+
+  yield();
+
   for(x = 0; x < schedulePoints[hc][d]; ++x) {
     EEPROM.get(pos, s);
     
@@ -246,6 +250,7 @@ unsigned char SmartRoom::getScheduledTemperature(unsigned char hc, unsigned char
     pos += sizeof(struct Schedule);
   }
   
+
   EEPROM.end();
   // This should return the setting for the last set point, so if the time is between midnight and the first start point, it'll return the last point from yesterday
   // or the default temp if there aren't any scheduled points.

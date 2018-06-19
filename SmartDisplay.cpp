@@ -98,7 +98,14 @@ void SmartDisplay::setBackgroundColor(uint16_t c)
 
 void SmartDisplay::setWeatherIcon(char *i)
 {
-  sprintf(imagefile, "%s.bmp", i);
+  char tmp[14];
+
+  sprintf(tmp, "%s.bmp", i);
+
+  if(!strcmp(tmp, imagefile)) 
+    return;
+
+  strcpy(imagefile, tmp);
 
   weatherIcon.setImage(&tft, imagefile);
 
@@ -519,6 +526,8 @@ void SmartDisplay::clearBuffer()
 
 void SmartDisplay::refreshScreen()
 {
+  Serial.println("Refreshing screen");
+
   tft.fillScreen(backgroundColor);
 
   weatherIcon.refresh(&tft);

@@ -130,41 +130,75 @@ long int getNTPTime() {
   return (long int)timeClient.getEpochTime();
 }
 
+unsigned long secs, lastsecs;
+
 void loop() {
   WiFiClient client;
   char currentTime[6];
   TempStruct tempStruct;
   char currentSetTempString[4];
   RegisterStruct reg;
-
+  
+  
+/*
+Serial.println("handleTouch()");
+Serial.flush();
+*/
   smartDisplay.handleTouch();
-
+/*
+Serial.println("getHours");
+Serial.flush();
+*/
   if(timeClient.getHours() > 12) {
     sprintf(currentTime, "%d:%02d", timeClient.getHours() - 12, timeClient.getMinutes());
   } else {
     sprintf(currentTime, "%d:%02d", timeClient.getHours(), timeClient.getMinutes());
   }
 
-  smartDisplay.setTime(currentTime);
+  secs = millis()/1000;
+  if(secs != lastsecs) {
+    Serial.println(secs);
+    lastsecs = secs;
+  }
   
+  
+/*
+Serial.println("setTime");
+Serial.flush();
+*/
+smartDisplay.setTime(currentTime);
+/*
+Serial.println("setWeatherIcon");
+Serial.flush();
+*/
   smartDisplay.setWeatherIcon(sw.getIcon());
-  
+/*Serial.println("setweather done");
+Serial.flush();
+*/
   sprintf(outsideTemp, "%.0f", sw.getTemperature());
-  
+
+/*
+Serial.println("setOutsideTemp");
+Serial.flush();
+*/
   smartDisplay.setOutsideTemp(outsideTemp);
   smartDisplay.setSetTemp(settings.getCurrentSetTemp());
-  
+
+
   processRooms();
-  
-  if(svc.getRegistration(&reg)) {
-    
-    smartDisplay.addNotification();
-  }
 
   if(svc.receiveTemperature(&tempStruct)) {
+    Serial.println("receiveTemperature: ");
+    Serial.print("  ");
+    Serial.println(tempStruct.host);
+    Serial.print("  ");
+    Serial.println(tempStruct.temp);
+    
     int x = 0;
     bool found = false;
     do {
+      Serial.println("setRoomTemp");
+      Serial.flush();
       if(sr[x].setRoomTemp(tempStruct.host, tempStruct.temp)) {
         Serial.println("got a match, temp set");
         found = true;
@@ -183,63 +217,29 @@ void loop() {
     Serial.print("temp  ");
     Serial.println(tempStruct.temp);
   } 
-
+/*
+  Serial.println("loop complete");
+  Serial.flush();
+*/
+  yield();
 }
 
 void processRooms() {
   int x;
-  int currentMinute = (hour()*60)+minute();
+  int currentMinute;
   
   byte setTemp;
   char vn[VENT_NAME_SIZE];
+
+  currentMinute = (hour()*60)+minute();
   currentDayOfWeek = weekday();
-  
+
   for(x = 0; x < numRooms; x++) {
+    
     setTemp = sr[x].getScheduledTemperature(hvac.getHVACMode(), currentDayOfWeek, currentMinute);
     for(x = 0; x < sr[x].getNumVents(); ++x) {
       strcpy(vn, sr[x].getVent(x));
     }
-/*
-    if(currentMode == HEAT) {
-      if(rooms[x].currentTemp < setTemp) {
-        if(rooms[x].currentPosition == SV_CLOSED) {
-          openVents(x);
-          rooms[x].currentPosition = SV_OPEN;
-          openRooms[rooms[x].floorNumber]++;
-        }
-      } else {
-        if(rooms[x].currentPosition == SV_OPEN) {
-          closeVents(x);
-          rooms[x].currentPosition = SV_CLOSED; 
-          openRooms[rooms[x].floorNumber]--;
-        }
-      }
-      if(openRooms[rooms[x].floorNumber] > 0 && furnaceState[rooms[x].floorNumber] == OFF) {
-        setFurnace(rooms[x].floorNumber, ON);
-      } else if(openRooms[rooms[x].floorNumber] == 0 && furnaceState[rooms[x].floorNumber] == ON) {
-        setFurnace(rooms[x].floorNumber, OFF);
-      }
-    } else if(currentMode == COOL) {
-      if(rooms[x].currentTemp > setTemp) {
-        if(rooms[x].currentPosition == SV_CLOSED) {
-          openVents(x);
-          rooms[x].currentPosition = SV_OPEN;
-          openRooms[rooms[x].floorNumber]++;
-        }
-      } else {
-        if(rooms[x].currentPosition == SV_OPEN) {
-          closeVents(x);
-          rooms[x].currentPosition = SV_CLOSED;
-          openRooms[rooms[x].floorNumber]--;
-        }
-      }
-      if(openRooms[rooms[x].floorNumber] > 0 && ACState[rooms[x].floorNumber] == OFF) {
-        setAC(rooms[x].floorNumber, ON);
-      } else if(openRooms[rooms[x].floorNumber] == 0 && ACState[rooms[x].floorNumber] == ON) {
-        setAC(rooms[x].floorNumber, OFF);
-      }
-    }
-    */
   }
 
   //delay(1000);
